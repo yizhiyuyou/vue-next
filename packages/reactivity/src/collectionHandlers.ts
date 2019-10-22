@@ -132,18 +132,25 @@ function createIterableMethod(method: string | symbol, isReadonly: boolean) {
   return function(this: any, ...args: any[]) {
     const target = toRaw(this)
     const proto: any = Reflect.getPrototypeOf(target)
+
+    // Map 默认遍历器接口为 entries (Symbol.intrator === entries)
     const isPair =
       method === 'entries' ||
       (method === Symbol.iterator && target instanceof Map)
+
     const innerIterator = proto[method].apply(target, args)
+
     const wrap = isReadonly ? toReadonly : toReactive
+
     track(target, OperationTypes.ITERATE)
+
     // return a wrapped iterator which returns observed versions of the
     // values emitted from the real iterator
     return {
       // iterator protocol
       next() {
         const { value, done } = innerIterator.next()
+
         return done
           ? { value, done }
           : {
@@ -179,6 +186,7 @@ function createReadonlyMethod(
   }
 }
 
+// 注意 this 指向，this 将指向 receiver。 receiver 指向实际的调用者（不一定和target相等）
 const mutableInstrumentations: any = {
   get(key: any) {
     return get(this, key, toReactive)
@@ -194,6 +202,7 @@ const mutableInstrumentations: any = {
   forEach: createForEach(false)
 }
 
+// 注意 this 指向，this 将指向 receiver。 receiver 指向实际的调用者（不一定和target相等）
 const readonlyInstrumentations: any = {
   get(key: any) {
     return get(this, key, toReadonly)

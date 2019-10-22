@@ -1,9 +1,11 @@
 import { isObject, toTypeString } from '@vue/shared'
 import { mutableHandlers, readonlyHandlers } from './baseHandlers'
+
 import {
   mutableCollectionHandlers,
   readonlyCollectionHandlers
 } from './collectionHandlers'
+
 import { ReactiveEffect } from './effect'
 import { UnwrapRef, Ref } from './ref'
 import { makeMap } from '@vue/shared'
@@ -23,11 +25,12 @@ const rawToReadonly = new WeakMap<any, any>()
 const readonlyToRaw = new WeakMap<any, any>()
 
 // WeakSets for values that are marked readonly or non-reactive during
-// observable creation.
+// observable creation. （在 observable 的创建过程中标记为 readonly 或 non-reactive 的 WeakSet）
 const readonlyValues = new WeakSet<any>()
 const nonReactiveValues = new WeakSet<any>()
 
 const collectionTypes = new Set<Function>([Set, Map, WeakMap, WeakSet])
+// ?: 匹配 pattern 但不获取匹配结果
 const isObservableType = /*#__PURE__*/ makeMap(
   ['Object', 'Array', 'Map', 'Set', 'WeakMap', 'WeakSet']
     .map(t => `[object ${t}]`)
@@ -45,17 +48,18 @@ const canObserve = (value: any): boolean => {
 
 // only unwrap nested ref
 type UnwrapNestedRefs<T> = T extends Ref ? T : UnwrapRef<T>
-
 export function reactive<T extends object>(target: T): UnwrapNestedRefs<T>
 export function reactive(target: object) {
   // if trying to observe a readonly proxy, return the readonly version.
   if (readonlyToRaw.has(target)) {
     return target
   }
+
   // target is explicitly marked as readonly by user
   if (readonlyValues.has(target)) {
     return readonly(target)
   }
+
   return createReactiveObject(
     target,
     rawToReactive,
@@ -95,28 +99,34 @@ function createReactiveObject(
     }
     return target
   }
-  // target already has corresponding Proxy
+
+  // target already has corresponding Proxy（目标已经有相应的代理）
   let observed = toProxy.get(target)
   if (observed !== void 0) {
     return observed
   }
-  // target is already a Proxy
+
+  // target is already a Proxy（目标已经是代理）
   if (toRaw.has(target)) {
     return target
   }
-  // only a whitelist of value types can be observed.
+
+  // only a whitelist of value types can be observed（只能观察到值类型的白名单）.
   if (!canObserve(target)) {
     return target
   }
+
   const handlers = collectionTypes.has(target.constructor)
     ? collectionHandlers
     : baseHandlers
   observed = new Proxy(target, handlers)
   toProxy.set(target, observed)
   toRaw.set(observed, target)
+
   if (!targetMap.has(target)) {
     targetMap.set(target, new Map())
   }
+
   return observed
 }
 

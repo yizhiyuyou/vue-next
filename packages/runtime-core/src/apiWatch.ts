@@ -113,9 +113,11 @@ function doWatch(
       if (instance && instance.isUnmounted) {
         return
       }
+
       if (cleanup) {
         cleanup()
       }
+
       return callWithErrorHandling(
         source,
         instance,
@@ -139,27 +141,33 @@ function doWatch(
   }
 
   let oldValue = isArray(source) ? [] : undefined
+
   const applyCb = cb
     ? () => {
         if (instance && instance.isUnmounted) {
           return
         }
+
         const newValue = runner()
+
         if (deep || newValue !== oldValue) {
           // cleanup before running cb again
           if (cleanup) {
             cleanup()
           }
+
           callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
             newValue,
             oldValue,
             registerCleanup
           ])
+
           oldValue = newValue
         }
       }
     : void 0
 
+  // 设置调度（调用回调的时机）
   let scheduler: (job: () => any) => void
   if (flush === 'sync') {
     scheduler = invoke
@@ -199,6 +207,7 @@ function doWatch(
   }
 
   recordEffect(runner)
+
   return () => {
     stop(runner)
   }
@@ -214,14 +223,20 @@ export function instanceWatch(
   const ctx = this.renderProxy!
   const getter = isString(source) ? () => ctx[source] : source.bind(ctx)
   const stop = watch(getter, cb.bind(ctx), options)
+
+  // 1. 处理没有 instance 的情况（如事件触发的事件中有 this.$watch）
+  // 2. 虽然会在不是 setup 的生命周期中收集两次回调，但是在 stop 中已设置 false，因此真正有用的方法只会执行一次。
   onBeforeUnmount(stop, this)
+
   return stop
 }
 
 function traverse(value: any, seen: Set<any> = new Set()) {
+  // seen 避免循环引用
   if (!isObject(value) || seen.has(value)) {
     return
   }
+
   seen.add(value)
   if (isArray(value)) {
     for (let i = 0; i < value.length; i++) {
@@ -241,5 +256,6 @@ function traverse(value: any, seen: Set<any> = new Set()) {
       traverse(value[key], seen)
     }
   }
+
   return value
 }

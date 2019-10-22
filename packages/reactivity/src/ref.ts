@@ -18,17 +18,22 @@ export function ref(raw: any) {
     return raw
   }
   raw = convert(raw)
+
   const v = {
     _isRef: true,
     get value() {
+      // 在计算属性中访问 ref 或 访问 reactive 中的 ref
       track(v, OperationTypes.GET, '')
+
       return raw
     },
     set value(newVal) {
       raw = convert(newVal)
+
       trigger(v, OperationTypes.SET, '')
     }
   }
+
   return v as Ref
 }
 
@@ -40,9 +45,11 @@ export function toRefs<T extends object>(
   object: T
 ): { [K in keyof T]: Ref<T[K]> } {
   const ret: any = {}
+
   for (const key in object) {
     ret[key] = toProxyRef(object, key)
   }
+
   return ret
 }
 

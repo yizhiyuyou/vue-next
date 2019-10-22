@@ -48,6 +48,7 @@ export function computed<T>(
       dirty = true
     }
   })
+
   return {
     _isRef: true,
     // expose effect so computed can be stopped
@@ -55,12 +56,16 @@ export function computed<T>(
     get value() {
       if (dirty) {
         value = runner()
+
         dirty = false
       }
+
       // When computed effects are accessed in a parent effect, the parent
       // should track all the dependencies the computed property has tracked.
       // This should also apply for chained computed properties.
+      // 当计算属性 a 依赖于计算属性 b
       trackChildRun(runner)
+
       return value
     },
     set value(newValue: T) {
@@ -73,9 +78,12 @@ function trackChildRun(childRunner: ReactiveEffect) {
   if (effectStack.length === 0) {
     return
   }
+
   const parentRunner = effectStack[effectStack.length - 1]
+
   for (let i = 0; i < childRunner.deps.length; i++) {
     const dep = childRunner.deps[i]
+
     if (!dep.has(parentRunner)) {
       dep.add(parentRunner)
       parentRunner.deps.push(dep)

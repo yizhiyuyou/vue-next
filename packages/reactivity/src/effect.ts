@@ -48,19 +48,24 @@ export function effect<T = any>(
   if (isEffect(fn)) {
     fn = fn.raw
   }
+
   const effect = createReactiveEffect(fn, options)
+
   if (!options.lazy) {
     effect()
   }
+
   return effect
 }
 
 export function stop(effect: ReactiveEffect) {
   if (effect.active) {
     cleanup(effect)
+
     if (effect.onStop) {
       effect.onStop()
     }
+
     effect.active = false
   }
 }
@@ -81,6 +86,7 @@ function createReactiveEffect<T = any>(
   effect.onStop = options.onStop
   effect.computed = options.computed
   effect.deps = []
+
   return effect
 }
 
@@ -88,10 +94,19 @@ function run(effect: ReactiveEffect, fn: Function, args: any[]): any {
   if (!effect.active) {
     return fn(...args)
   }
+
+  // 清空依赖，并重新收集依赖（防止 a.b && a.b.c 造成的依赖陈旧）
   if (!effectStack.includes(effect)) {
     cleanup(effect)
+
     try {
       effectStack.push(effect)
+
+      // 如果 fn 里面有 reactive 数据返回就会被 baseHandlers get -> track -> 获取并设置 effect
+      // reactive.b.c get -> track -> 获取 effect -> reactive -> get -> track -> 获取并设置 effect
+      // 多个属性链式访问以此类推
+      // 而当访问 computed ，调用计算属性的 effect/runner
+      // computed.value.b 调用计算属性的 effect/runner -> reactive -> get -> track -> 获取并设置 effect
       return fn(...args)
     } finally {
       effectStack.pop()
@@ -101,10 +116,12 @@ function run(effect: ReactiveEffect, fn: Function, args: any[]): any {
 
 function cleanup(effect: ReactiveEffect) {
   const { deps } = effect
+
   if (deps.length) {
     for (let i = 0; i < deps.length; i++) {
       deps[i].delete(effect)
     }
+
     deps.length = 0
   }
 }
@@ -127,21 +144,29 @@ export function track(
   if (!shouldTrack || effectStack.length === 0) {
     return
   }
+
+  // effect 为空，不需要收集该依赖（说明当前的触发不是 computed, watch, render 中的 getter）
   const effect = effectStack[effectStack.length - 1]
+
   if (type === OperationTypes.ITERATE) {
     key = ITERATE_KEY
   }
+
+  // depsMap 是依赖于 target 的 对应属性（key）的 effect Map集合
   let depsMap = targetMap.get(target)
   if (depsMap === void 0) {
     targetMap.set(target, (depsMap = new Map()))
   }
+
   let dep = depsMap.get(key!)
   if (dep === void 0) {
     depsMap.set(key!, (dep = new Set()))
   }
+
   if (!dep.has(effect)) {
     dep.add(effect)
     effect.deps.push(dep)
+
     if (__DEV__ && effect.onTrack) {
       effect.onTrack({
         effect,
@@ -164,6 +189,7 @@ export function trigger(
     // never been tracked
     return
   }
+
   const effects = new Set<ReactiveEffect>()
   const computedRunners = new Set<ReactiveEffect>()
   if (type === OperationTypes.CLEAR) {
@@ -176,17 +202,20 @@ export function trigger(
     if (key !== void 0) {
       addRunners(effects, computedRunners, depsMap.get(key))
     }
+
     // also run for iteration key on ADD | DELETE
     if (type === OperationTypes.ADD || type === OperationTypes.DELETE) {
       const iterationKey = Array.isArray(target) ? 'length' : ITERATE_KEY
       addRunners(effects, computedRunners, depsMap.get(iterationKey))
     }
   }
+
   const run = (effect: ReactiveEffect) => {
     scheduleRun(effect, target, type, key, extraInfo)
   }
+
   // Important: computed effects must be run first so that computed getters
-  // can be invalidated before any normal effects that depend on them are run.
+  // can be invalidated before any normal effects that depend on them are run.（需要计算属性重新计算）
   computedRunners.forEach(run)
   effects.forEach(run)
 }
@@ -227,6 +256,7 @@ function scheduleRun(
       )
     )
   }
+
   if (effect.scheduler !== void 0) {
     effect.scheduler(effect)
   } else {
